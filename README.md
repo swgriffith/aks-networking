@@ -24,7 +24,7 @@ A secure network setup with Azure Firewall for controlled egress traffic and a j
 
 | Example | Description | Infrastructure | Documentation |
 |---------|-------------|----------------|---------------|
-| Basic AKS Cluster | Deploy an AKS cluster with Azure CNI networking using Azure CLI with default options | Basic or Egress Lockdown | [Guide](infra/default-aks-cluster/README.md) |
+| Basic AKS Cluster | Deploy an AKS cluster with Azure CNI networking using Azure CLI with default options | Basic or Egress Lockdown | [Guide](/default-aks-cluster/README.md) |
 
 ## Prerequisites
 
