@@ -181,6 +181,7 @@ module firewall 'br/public:avm/res/network/azure-firewall:0.5.0' = {
               ]
               sourceAddresses: [
                 aksSubnetAddressPrefix
+                jumpServerSubnetAddressPrefix
               ]
               destinationAddresses: [
                 '*'
@@ -197,6 +198,7 @@ module firewall 'br/public:avm/res/network/azure-firewall:0.5.0' = {
               ]
               sourceAddresses: [
                 aksSubnetAddressPrefix
+                jumpServerSubnetAddressPrefix
               ]
               destinationAddresses: [
                 '*'
@@ -213,12 +215,29 @@ module firewall 'br/public:avm/res/network/azure-firewall:0.5.0' = {
               ]
               sourceAddresses: [
                 aksSubnetAddressPrefix
+                jumpServerSubnetAddressPrefix
               ]
               destinationAddresses: [
                 '*'
               ]
               destinationPorts: [
                 '443'
+              ]
+            }
+            {
+              name: 'allow-http'
+              description: 'Allow HTTP for package repository access'
+              protocols: [
+                'TCP'
+              ]
+              sourceAddresses: [
+                jumpServerSubnetAddressPrefix
+              ]
+              destinationAddresses: [
+                '*'
+              ]
+              destinationPorts: [
+                '80'
               ]
             }
           ]
@@ -256,6 +275,38 @@ module firewall 'br/public:avm/res/network/azure-firewall:0.5.0' = {
                 'acs-mirror.azureedge.net'
               ]
             }
+            {
+              name: 'allow-jump-server-tools'
+              description: 'Allow jump server to download kubectl, helm, and Azure CLI'
+              protocols: [
+                {
+                  protocolType: 'Https'
+                  port: 443
+                }
+                {
+                  protocolType: 'Http'
+                  port: 80
+                }
+              ]
+              sourceAddresses: [
+                jumpServerSubnetAddressPrefix
+              ]
+              targetFqdns: [
+                'pkgs.k8s.io'
+                '*.pkgs.k8s.io'
+                'baltocdn.com'
+                '*.baltocdn.com'
+                'get.helm.sh'
+                'aka.ms'
+                'packages.microsoft.com'
+                'azure.archive.ubuntu.com'
+                'archive.ubuntu.com'
+                'security.ubuntu.com'
+                'ports.ubuntu.com'
+                '*.ubuntu.com'
+                'download.docker.com'
+              ]
+            }
           ]
         }
       }
@@ -280,6 +331,9 @@ module jumpServer 'br/public:avm/res/compute/virtual-machine:0.9.0' = {
     adminUsername: jumpServerAdminUsername
     disablePasswordAuthentication: true
     encryptionAtHost: false
+    managedIdentities: {
+      systemAssigned: true
+    }
     publicKeys: [
       {
         path: '/home/${jumpServerAdminUsername}/.ssh/authorized_keys'
@@ -362,6 +416,20 @@ final_message: "Jump server setup complete with kubectl, curl, helm, and Azure C
   ]
 }
 
+// Assign Contributor role to jump server on the resource group
+module jumpServerRoleAssignment 'br/public:avm/ptn/authorization/resource-role-assignment:0.1.1' = {
+  name: 'jump-server-role-assignment'
+  scope: az.resourceGroup(resourceGroupName)
+  params: {
+    principalId: jumpServer.outputs.systemAssignedMIPrincipalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c') // Contributor
+    resourceId: resourceGroup.outputs.resourceId
+  }
+  dependsOn: [
+    jumpServer
+  ]
+}
+
 @description('The resource ID of the resource group')
 output resourceGroupId string = resourceGroup.outputs.resourceId
 
@@ -400,3 +468,6 @@ output jumpServerId string = jumpServer.outputs.resourceId
 
 @description('The name of the jump server')
 output jumpServerName string = jumpServer.outputs.name
+
+@description('The system-assigned managed identity principal ID of the jump server')
+output jumpServerPrincipalId string = jumpServer.outputs.systemAssignedMIPrincipalId
