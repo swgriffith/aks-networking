@@ -158,86 +158,6 @@ kubectl get nodes
 kubectl get pods -A
 ```
 
-## Additional Configuration Options
-
-### Customize Node Count
-
-```bash
-az aks create \
-  --resource-group $RESOURCE_GROUP \
-  --name aks-cluster \
-  --vnet-subnet-id $SUBNET_ID \
-  --network-plugin azure \
-  --service-cidr 172.16.0.0/16 \
-  --dns-service-ip 172.16.0.10 \
-  --node-count 5 \
-  --generate-ssh-keys
-```
-
-### Customize VM Size
-
-```bash
-az aks create \
-  --resource-group $RESOURCE_GROUP \
-  --name aks-cluster \
-  --vnet-subnet-id $SUBNET_ID \
-  --network-plugin azure \
-  --service-cidr 172.16.0.0/16 \
-  --dns-service-ip 172.16.0.10 \
-  --node-vm-size Standard_D4s_v3 \
-  --generate-ssh-keys
-```
-
-### Specify Kubernetes Version
-
-```bash
-# List available versions
-az aks get-versions --location eastus --output table
-
-# Create with specific version
-az aks create \
-  --resource-group $RESOURCE_GROUP \
-  --name aks-cluster \
-  --vnet-subnet-id $SUBNET_ID \
-  --network-plugin azure \
-  --service-cidr 172.16.0.0/16 \
-  --dns-service-ip 172.16.0.10 \
-  --kubernetes-version 1.29.0 \
-  --generate-ssh-keys
-```
-
-## Troubleshooting
-
-### Cluster creation fails with network errors
-
-Ensure:
-- The subnet has enough available IP addresses
-- The route table is properly attached to the subnet (egress lockdown scenario)
-- Firewall rules allow necessary AKS egress traffic (egress lockdown scenario)
-
-### Cannot connect to cluster
-
-For basic infrastructure:
-- Verify you have the credentials: `az aks get-credentials`
-- Check your kubeconfig: `kubectl config current-context`
-
-For egress lockdown infrastructure:
-- Use the jump server to access the cluster
-- Verify the jump server can reach the AKS API server
-
-### Nodes not ready
-
-```bash
-# Check node status
-kubectl get nodes
-
-# Describe nodes for more details
-kubectl describe nodes
-
-# Check system pods
-kubectl get pods -n kube-system
-```
-
 ## Clean Up
 
 ### Delete AKS Cluster Only
@@ -253,32 +173,10 @@ az aks delete \
 
 Basic infrastructure:
 ```bash
-az group delete --name rg-aks-networking-dev --yes --no-wait
+az group delete --name $RESOURCE_GROUP --yes --no-wait
 ```
 
 Egress lockdown infrastructure:
 ```bash
-az group delete --name rg-aks-egress-lockdown-dev --yes --no-wait
+az group delete --name $RESOURCE_GROUP --yes --no-wait
 ```
-
-## Cost Considerations
-
-AKS cluster costs depend on:
-- **Compute nodes**: Charged at standard VM pricing rates
-- **Standard_DS2_v2** (default): ~$96.36/month per node
-- **Standard_D4s_v3**: ~$175.20/month per node
-- **Load Balancer**: Standard Load Balancer charges apply
-- **Public IPs**: Charged for any public IPs used
-- **Azure Firewall** (egress lockdown only): ~$1.25/hour + data processing charges
-
-> **Note**: 3-node cluster with default settings costs approximately $290/month for compute + additional costs for load balancer and data transfer.
-
-## Next Steps
-
-After deploying your AKS cluster:
-1. Deploy sample applications
-2. Configure ingress controllers
-3. Set up monitoring with Azure Monitor
-4. Configure Azure Policy for governance
-5. Implement pod security policies
-6. Set up CI/CD pipelines

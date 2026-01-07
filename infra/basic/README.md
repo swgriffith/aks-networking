@@ -120,51 +120,12 @@ az deployment sub create \
 | `aksSubnetId` | string | Resource ID of the AKS subnet |
 | `aksSubnetName` | string | Name of the AKS subnet |
 
-## Cost Considerations
-
-This basic infrastructure has minimal costs:
-- **Virtual Network**: No charge for VNet and subnets
-- **Resource Group**: No charge
-- **Estimated Monthly Cost**: ~$0
-
-> **Note**: Costs shown don't include AKS cluster costs. Actual costs begin when you deploy an AKS cluster.
-
-## Security Best Practices
-
-1. **Network Security Groups (NSGs)**: Consider adding NSGs to the AKS subnet for traffic filtering
-2. **Private AKS Cluster**: For production, consider deploying a private AKS cluster
-3. **Azure Policy**: Implement Azure Policy for governance and compliance
-4. **Diagnostic Logs**: Enable diagnostic settings for the VNet when needed
-
-## Next Steps
-
-After deploying this baseline infrastructure, you can:
-1. Deploy an AKS cluster into the created subnet
-2. Add additional subnets for other services (e.g., Azure Firewall, Application Gateway)
-3. Configure network security groups and route tables
-4. Set up peering with other virtual networks
-
-## Troubleshooting
-
-### Deployment fails with "ResourceGroupNotFound"
-- Ensure you're deploying at subscription scope (`deployment sub create`)
-- The template creates the resource group; don't create it manually first
-
-### Cannot deploy AKS cluster into subnet
-- Verify the subnet ID from the deployment outputs
-- Ensure the subnet has sufficient IP addresses for your node count
-- Check that no conflicting resources exist in the subnet
-
-### VNet peering issues
-- Verify both VNets don't have overlapping address spaces
-- Ensure proper permissions on both subscriptions if cross-subscription peering
-
 ## Clean Up
 
 To delete all resources:
 
 ```bash
-az group delete --name rg-aks-networking-dev --yes --no-wait
+az group delete --name $RESOURCE_GROUP_NAME --yes --no-wait
 ```
 
 > **Note**: Resource deletion typically completes in a few minutes.

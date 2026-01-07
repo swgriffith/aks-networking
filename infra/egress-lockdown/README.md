@@ -219,92 +219,40 @@ From the jump server, you can:
 
 ## Firewall Rules
 
-The deployment includes basic firewall rules required for AKS:
+The deployment includes firewall rules for both AKS and the jump server:
 
 ### Network Rules
-- **NTP**: UDP/123 for time synchronization
-- **DNS**: UDP/53 for DNS resolution
-- **HTTPS**: TCP/443 for general HTTPS traffic
+- **NTP**: UDP/123 for time synchronization (AKS subnet + Jump server subnet)
+- **DNS**: UDP/53 for DNS resolution (AKS subnet + Jump server subnet)
+- **HTTPS**: TCP/443 for general HTTPS traffic (AKS subnet + Jump server subnet)
+- **HTTP**: TCP/80 for package repository access (Jump server subnet only)
 
 ### Application Rules
-- **AKS Required FQDNs**:
-  - `*.hcp.<region>.azmk8s.io` - AKS control plane
-  - `mcr.microsoft.com` - Microsoft Container Registry
-  - `*.data.mcr.microsoft.com` - MCR data endpoints
-  - `management.azure.com` - Azure Resource Manager
-  - `login.microsoftonline.com` - Azure AD authentication
-  - `packages.microsoft.com` - Microsoft packages
-  - `acs-mirror.azureedge.net` - AKS mirror
+
+#### AKS Required FQDNs
+- `*.hcp.<region>.azmk8s.io` - AKS control plane
+- `mcr.microsoft.com` - Microsoft Container Registry
+- `*.data.mcr.microsoft.com` - MCR data endpoints
+- `management.azure.com` - Azure Resource Manager
+- `login.microsoftonline.com` - Azure AD authentication
+- `packages.microsoft.com` - Microsoft packages
+- `acs-mirror.azureedge.net` - AKS mirror
+
+#### Jump Server Tools Installation
+- `pkgs.k8s.io`, `*.pkgs.k8s.io` - Kubernetes package repository (kubectl)
+- `baltocdn.com`, `*.baltocdn.com`, `get.helm.sh` - Helm downloads
+- `aka.ms`, `packages.microsoft.com` - Azure CLI and Microsoft packages
+- `azure.archive.ubuntu.com`, `archive.ubuntu.com`, `security.ubuntu.com`, `ports.ubuntu.com`, `*.ubuntu.com` - Ubuntu package repositories
+- `download.docker.com` - Docker-related dependencies
 
 > **Note**: You may need to add additional rules based on your workload requirements.
-
-## Cost Considerations
-
-Azure Firewall is a premium service with hourly charges plus data processing fees. Consider:
-- **Azure Firewall**: Runs 24/7 with hourly costs (~$1.25/hour or ~$912/month) plus data processing
-- **Jump Server (Standard_B2s)**: ~$30-40/month (can be stopped when not in use)
-- Data processing charges apply to all firewall traffic
-
-For dev/test environments, consider:
-- Azure Firewall Basic SKU (lower cost)
-- Stop/deallocate the jump server when not in use
-- Firewall policies to control rules
-- Using B-series burstable VMs for jump server (good for intermittent use)
-
-## Security Best Practices
-
-1. **Principle of Least Privilege**: The included rules are basic. Review and restrict to only what your AKS cluster needs.
-2. **Jump Server Access**: 
-   - Restrict SSH access to specific IP addresses in the NSG
-   - Use Azure Bastion instead of public IP for production
-   - Regularly update the jump server OS and packages
-   - Enable Azure AD authentication for SSH
-3. **Enable Diagnostic Logs**: Send firewall logs to Log Analytics for monitoring
-4. **Regular Rule Reviews**: Audit firewall rules periodically
-5. **Use Firewall Policy**: Consider migrating to Azure Firewall Policy for centralized management
-6. **Key Management**: Store SSH private keys securely (Azure Key Vault, not in repos)
-
-## Next Steps
-
-After deploying this infrastructure, you can:
-1. Connect to the jump server and install Azure CLI and kubectl
-2. Deploy an AKS cluster into the created subnet with `--outbound-type userDefinedRouting`
-3. Configure jump server to access AKS cluster nodes
-4. Add additional firewall rules for your specific workload requirements
-5. Configure diagnostic settings for the firewall
-6. Set up Azure Monitor for firewall metrics and logs
-7. Implement Azure Firewall Policy for advanced rule management
-8. Consider replacing the jump server public IP with Azure Bastion for production
-
-## Troubleshooting
-
-### AKS nodes unable to communicate
-- Verify firewall rules allow required AKS FQDNs
-- Check route table is properly associated with AKS subnet
-- Confirm firewall private IP is 10.0.1.4
-
-### Firewall rules not working
-- Ensure network rules have priority lower than application rules
-- Verify source addresses match AKS subnet CIDR
-- Check firewall logs for denied traffic
-
-### Cannot connect to jump server via SSH
-- Verify NSG allows SSH from your IP address
-- Check that the jump server is running (not stopped/deallocated)
-- Confirm you're using the correct SSH private key
-- Test connectivity: `nc -zv <jump-server-ip> 22`
-
-### Jump server cannot reach internet
-- Jump server subnet is not associated with the route table by default
-- This allows direct internet access for management
-- If you need egress control, associate the route table with the jump server subnet
 
 ## Clean Up
 
 To delete all resources:
 
 ```bash
-az group delete --name rg-aks-egress-lockdown-dev --yes --no-wait
+az group delete --name $RESOURCE_GROUP_NAME --yes --no-wait
 ```
 
 > **Note**: Firewall deletion can take 10-15 minutes.
