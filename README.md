@@ -26,8 +26,10 @@ A secure network setup with Azure Firewall for controlled egress traffic and a j
 
 | Example | Description | Infrastructure | Documentation |
 |---------|-------------|----------------|---------------|
-| Basic Infrastructure | Deploy AKS cluster with default routing | Basic | [Guide](outbound-type/basic-infrastructure.md) |
-| Egress Lockdown | Deploy AKS cluster with user-defined routing through Azure Firewall | Egress Lockdown | [Guide](outbound-type/egress-lockdown-infrastructure.md) |
+| Outbound Type: LoadBalancer | Deploy AKS cluster with default routing via Azure Load Balancer | Basic | [Guide](outbound-type/loadbalancer-outbound-type.md) |
+| Outbound Type: UserDefinedRouting | Deploy AKS cluster with user-defined routing through Azure Firewall | Egress Lockdown | [Guide](outbound-type/userdefinedrouting-outbound-type.md) |
+| Outbound Type: None | Deploy AKS cluster with no outbound connectivity (air-gapped) | Basic or Egress Lockdown | [Guide](outbound-type/none-outbound-type.md) |
+| Outbound Type: Block | Deploy AKS cluster with blocked outbound connectivity (deprecated) | Basic or Egress Lockdown | [Guide](outbound-type/block-outbound-type.md) |
 
 ## Prerequisites
 
@@ -60,9 +62,11 @@ aks-networking/
 │       ├── main.bicep
 │       ├── main.bicepparam
 │       └── README.md
-└── outbound-type/                      # AKS deployment guides
-    ├── basic-infrastructure.md         # Deploy on basic infrastructure
-    └── egress-lockdown-infrastructure.md # Deploy on egress lockdown
+└── outbound-type/                      # AKS deployment guides by outbound type
+    ├── loadbalancer-outbound-type.md   # Default routing via Load Balancer
+    ├── userdefinedrouting-outbound-type.md # User-defined routing (UDR)
+    ├── none-outbound-type.md           # No outbound connectivity
+    └── block-outbound-type.md          # Blocked outbound (deprecated)
 ```
 
 ## Contributing
