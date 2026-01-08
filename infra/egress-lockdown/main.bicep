@@ -416,20 +416,6 @@ final_message: "Jump server setup complete with kubectl, curl, helm, and Azure C
   ]
 }
 
-// Assign Contributor role to jump server on the resource group
-module jumpServerRoleAssignment 'br/public:avm/ptn/authorization/resource-role-assignment:0.1.1' = {
-  name: 'jump-server-role-assignment'
-  scope: az.resourceGroup(resourceGroupName)
-  params: {
-    principalId: jumpServer.outputs.systemAssignedMIPrincipalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c') // Contributor
-    resourceId: resourceGroup.outputs.resourceId
-  }
-  dependsOn: [
-    jumpServer
-  ]
-}
-
 @description('The resource ID of the resource group')
 output resourceGroupId string = resourceGroup.outputs.resourceId
 

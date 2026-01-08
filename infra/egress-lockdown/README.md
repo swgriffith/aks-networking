@@ -211,9 +211,39 @@ JUMP_IP=$(az vm list-ip-addresses \
 ssh -i ~/.ssh/aks-jump-server azureuser@$JUMP_IP
 ```
 
+## Post-Deployment Configuration
+
+### Grant Jump Server Permissions
+
+The jump server has a system-assigned managed identity that needs Contributor permissions to manage Azure resources:
+
+```bash
+# Get the jump server's principal ID
+PRINCIPAL_ID=$(az vm identity show \
+  --resource-group rg-aks-egress-lockdown-dev \
+  --name vm-jump-server \
+  --query principalId -o tsv)
+
+# Get the resource group ID
+RG_ID=$(az group show \
+  --name rg-aks-egress-lockdown-dev \
+  --query id -o tsv)
+
+# Assign Contributor role on the resource group
+az role assignment create \
+  --assignee $PRINCIPAL_ID \
+  --role Contributor \
+  --scope $RG_ID
+```
+
+This allows the jump server to:
+- Create and manage AKS clusters
+- Query Azure resources
+- Perform Azure operations without storing credentials
+
 From the jump server, you can:
 - Access AKS cluster nodes (if configured)
-- Manage Azure resources using Azure CLI
+- Manage Azure resources using Azure CLI with managed identity authentication
 - Run kubectl commands against the AKS cluster
 - Troubleshoot network connectivity issues
 
