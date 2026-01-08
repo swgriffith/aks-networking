@@ -40,6 +40,7 @@ az aks create \
   --name aks-block-cluster \
   --vnet-subnet-id $SUBNET_ID \
   --network-plugin azure \
+  --network-plugin-mode overlay \
   --outbound-type block \
   --service-cidr 172.16.0.0/16 \
   --dns-service-ip 172.16.0.10 \
@@ -52,7 +53,7 @@ This creates an AKS cluster with:
 - VM size: Standard_DS4_v2
 - System-assigned managed identity
 - Default Kubernetes version
-- Azure CNI networking
+- Azure CNI Overlay networking
 - **Blocked outbound internet connectivity**
 - Automatically generated SSH keys
 
