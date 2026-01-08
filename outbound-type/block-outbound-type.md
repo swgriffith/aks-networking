@@ -202,16 +202,8 @@ You may also need private endpoints for:
 - Azure Storage (if using Azure Files/Disks)
 - Any application-specific Azure services
 
-### 6. Get Cluster Credentials
+### 8. Get Cluster Credentials
 
-From your local machine (basic infrastructure):
-```bash
-az aks get-credentials \
-  --resource-group $RESOURCE_GROUP \
-  --name aks-block-cluster
-```
-
-From jump server (egress lockdown infrastructure):
 ```bash
 # SSH to jump server first
 JUMP_SERVER_IP=$(az vm show \
