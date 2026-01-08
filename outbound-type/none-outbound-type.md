@@ -255,6 +255,8 @@ JUMP_SERVER_IP=$(az vm show \
 ssh -i ~/.ssh/id_rsa_aks_jump azureuser@$JUMP_SERVER_IP
 
 # Then on jump server
+RESOURCE_GROUP="rg-aks-egress-lockdown-dev"
+
 az login --identity
 az aks get-credentials \
   --resource-group $RESOURCE_GROUP \
@@ -268,69 +270,6 @@ kubectl get nodes
 kubectl get pods -A
 ```
 
-## Important Considerations
-
-### Image Pull Strategy
-
-With no outbound connectivity, you cannot pull images from public registries. Options include:
-
-1. **Use Azure Container Registry with Private Endpoint**
-```bash
-# Import images to ACR
-az acr import \
-  --name <your-acr> \
-  --source docker.io/library/nginx:latest \
-  --image nginx:latest
-```
-
-2. **Pre-cache images on nodes** - Not recommended for production
-
-### DNS Configuration
-
-Ensure DNS resolution works for private endpoints:
-
-```bash
-# Configure private DNS zones for Azure services
-az network private-dns zone create \
-  --resource-group $RESOURCE_GROUP \
-  --name privatelink.azurecr.io
-```
-
-### Azure Monitor and Logging
-
-Configure Azure Monitor for containers to use private endpoints or disable if not needed.
-
-## Troubleshooting
-
-### Nodes not ready
-
-```bash
-# Check node status
-kubectl get nodes -o wide
-
-# Check events
-kubectl get events --all-namespaces --sort-by='.lastTimestamp'
-
-# Common issue: Cannot pull images
-kubectl describe pod <pod-name> -n <namespace>
-```
-
-### Cannot pull images
-
-Verify private endpoint connectivity:
-```bash
-# Test from a node
-kubectl debug node/<node-name> -it --image=busybox
-# Then inside the debug pod
-nslookup <your-acr>.azurecr.io
-```
-
-### Pods cannot reach Azure services
-
-- Verify private endpoints are created for all required services
-- Check private DNS zone configuration
-- Verify NSG rules allow traffic to private endpoints
-
 ## Clean Up
 
 ### Delete AKS Cluster Only
@@ -342,28 +281,3 @@ az aks delete \
   --yes --no-wait
 ```
 
-### Delete Everything Including Infrastructure
-
-```bash
-az group delete --name $RESOURCE_GROUP --yes --no-wait
-```
-
-## Cost Considerations
-
-- **Compute nodes**: Standard VM pricing applies
-- **Standard_DS4_v2**: ~$175.20/month per node
-- **Private Endpoints**: ~$7.30/month per endpoint + data processing
-- **Private DNS Zones**: Minimal cost for queries
-- **Load Balancer**: Internal only (lower cost than public)
-
-> **Note**: While there's no egress data cost, private endpoint costs can add up with multiple services.
-
-## Next Steps
-
-After deploying your AKS cluster with outbound type "none":
-1. Set up private endpoints for all required Azure services
-2. Configure private DNS zones
-3. Test image pull from private Azure Container Registry
-4. Deploy applications that only use private connectivity
-5. Configure monitoring through private endpoints
-6. Document private endpoint architecture for your team

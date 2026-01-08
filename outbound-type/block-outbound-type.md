@@ -247,6 +247,8 @@ JUMP_SERVER_IP=$(az vm show \
 ssh -i ~/.ssh/id_rsa_aks_jump azureuser@$JUMP_SERVER_IP
 
 # Then on jump server
+RESOURCE_GROUP="rg-aks-egress-lockdown-dev"
+
 az login --identity
 az aks get-credentials \
   --resource-group $RESOURCE_GROUP \
@@ -260,102 +262,6 @@ kubectl get nodes
 kubectl get pods -A
 ```
 
-## Differences Between Block and None
-
-| Aspect | Block | None |
-|--------|-------|------|
-| **Status** | Deprecated (1.29+) | Current/Recommended |
-| **Behavior** | Explicitly blocks outbound | No outbound configured |
-| **Use Case** | Legacy/explicit blocking | Modern private clusters |
-| **Future Support** | Being phased out | Actively supported |
-
-**Recommendation**: For new deployments, use [outbound type "none"](none-outbound-type.md) instead.
-
-## Important Considerations
-
-### Image Management
-
-With blocked outbound connectivity:
-
-1. **Use Azure Container Registry with Private Endpoint**
-```bash
-# Import images from public registries
-az acr import \
-  --name <your-acr> \
-  --source docker.io/library/nginx:latest \
-  --image nginx:latest
-
-az acr import \
-  --name <your-acr> \
-  --source mcr.microsoft.com/oss/kubernetes/pause:3.9 \
-  --image pause:3.9
-```
-
-2. **Deploy images from private registry**
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: nginx
-spec:
-  containers:
-  - name: nginx
-    image: <your-acr>.azurecr.io/nginx:latest
-```
-
-### DNS Configuration
-
-Configure private DNS zones for all Azure services accessed via private endpoints:
-
-```bash
-# Common private DNS zones needed
-privatelink.azurecr.io           # Container Registry
-privatelink.vaultcore.azure.net  # Key Vault
-privatelink.blob.core.windows.net # Storage
-```
-
-## Troubleshooting
-
-### Nodes stuck in NotReady state
-
-```bash
-# Check node conditions
-kubectl describe node <node-name>
-
-# Common issues:
-# - Cannot reach control plane
-# - Cannot pull base images
-# - DNS resolution failing
-```
-
-### Cannot pull images
-
-```bash
-# Verify ACR private endpoint
-az network private-endpoint show \
-  --resource-group $RESOURCE_GROUP \
-  --name pe-acr
-
-# Test DNS resolution from cluster
-kubectl run -it --rm debug --image=busybox --restart=Never -- nslookup <your-acr>.azurecr.io
-```
-
-### Pods cannot reach Azure services
-
-- Verify private endpoints exist for all required services
-- Check private DNS zone links to your VNet
-- Verify NSG rules allow traffic to private endpoint subnet
-- Check firewall rules (if using egress lockdown infrastructure)
-
-## Migration from Block to None
-
-If you're using "block" and want to migrate to "none":
-
-1. This cannot be changed on an existing cluster
-2. You must create a new cluster with outbound type "none"
-3. Migrate workloads to the new cluster
-4. Decommission the old cluster
-
 ## Clean Up
 
 ### Delete AKS Cluster Only
@@ -367,28 +273,3 @@ az aks delete \
   --yes --no-wait
 ```
 
-### Delete Everything Including Infrastructure
-
-```bash
-az group delete --name $RESOURCE_GROUP --yes --no-wait
-```
-
-## Cost Considerations
-
-- **Compute nodes**: Standard VM pricing applies
-- **Standard_DS4_v2**: ~$175.20/month per node
-- **Private Endpoints**: ~$7.30/month per endpoint + data processing
-- **Private DNS Zones**: Minimal cost for queries
-- **Load Balancer**: Internal only (lower cost than public)
-
-> **Note**: Same cost structure as "none" outbound type.
-
-## Next Steps
-
-After deploying your AKS cluster with outbound type "block":
-1. **Consider migrating to "none"** for future compatibility
-2. Set up private endpoints for all required Azure services
-3. Configure private DNS zones
-4. Test image pull from private Azure Container Registry
-5. Deploy applications that only use private connectivity
-6. Plan migration strategy to "none" outbound type
