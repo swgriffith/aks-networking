@@ -2,43 +2,181 @@
 
 This guide shows how to create an AKS cluster with outbound type set to "block", which prevents all outbound internet connectivity from the cluster. This is similar to "none" but is explicitly blocking outbound traffic rather than simply not configuring it.
 
+> **Important:** The `block` outbound type only works in network isolated clusters and requires an Azure Container Registry (ACR) configured with Microsoft Container Registry (MCR) pull-through cache to pull container images.
+
 ## Prerequisites
 
 - Azure CLI installed and authenticated (`az login`)
 - Appropriate Azure subscription permissions
 - Infrastructure already deployed (basic or egress lockdown) - See [Infrastructure Setup](../README.md#infrastructure-setup-options)
+- **Network isolated environment** (no internet egress)
+- **Azure Container Registry with MCR pull-through cache configured** (required for pulling container images)
 
 ## Deployment Steps
 
 ### 1. Get Infrastructure Outputs
 
-For basic infrastructure:
-```bash
-RESOURCE_GROUP="rg-aks-networking-dev"
-SUBNET_ID=$(az network vnet subnet show \
-  --resource-group $RESOURCE_GROUP \
-  --vnet-name vnet-aks-dev \
-  --name aks-subnet \
-  --query id -o tsv)
-```
-
-For egress lockdown infrastructure:
 ```bash
 RESOURCE_GROUP="rg-aks-egress-lockdown-dev"
+VNET_NAME="vnet-aks-egress-dev"
 SUBNET_ID=$(az network vnet subnet show \
   --resource-group $RESOURCE_GROUP \
-  --vnet-name vnet-aks-egress-dev \
+  --vnet-name $VNET_NAME \
   --name aks-subnet \
   --query id -o tsv)
 ```
 
-### 2. Create AKS Cluster with Outbound Type Block
+### 2. Configure Azure Container Registry with MCR Pull-Through Cache
+
+> **Important:** The ACR must be created and configured BEFORE creating the AKS cluster.
+
+```bash
+# Set ACR name (must be globally unique)
+REGISTRY_NAME="<your-acr-name>"
+
+# Create Azure Container Registry with Premium SKU (required for pull-through cache)
+az acr create \
+  --resource-group $RESOURCE_GROUP \
+  --name $REGISTRY_NAME \
+  --sku Premium \
+  --public-network-enabled false
+
+REGISTRY_ID=$(az acr show --name $REGISTRY_NAME -g $RESOURCE_GROUP --query 'id' --output tsv)
+
+# Enable MCR pull-through cache (cache rule name must be exactly as shown)
+az acr cache create \
+  -n aks-managed-mcr \
+  -r $REGISTRY_NAME \
+  -g $RESOURCE_GROUP \
+  --source-repo "mcr.microsoft.com/*" \
+  --target-repo "aks-managed-repository/*"
+```
+
+> **Note:** The cache rule name `aks-managed-mcr` and target repo `aks-managed-repository/*` are required for AKS network isolated clusters.
+
+### 3. Create Private Endpoint for ACR
+
+```bash
+# Create private endpoint for ACR
+az network private-endpoint create \
+  --name pe-acr \
+  --resource-group $RESOURCE_GROUP \
+  --vnet-name $VNET_NAME \
+  --subnet aks-subnet \
+  --private-connection-resource-id $REGISTRY_ID \
+  --group-id registry \
+  --connection-name acr-connection
+
+# Get private endpoint IP addresses
+NETWORK_INTERFACE_ID=$(az network private-endpoint show \
+  --name pe-acr \
+  --resource-group $RESOURCE_GROUP \
+  --query 'networkInterfaces[0].id' \
+  --output tsv)
+
+REGISTRY_PRIVATE_IP=$(az network nic show \
+  --ids $NETWORK_INTERFACE_ID \
+  --query "ipConfigurations[?privateLinkConnectionProperties.requiredMemberName=='registry'].privateIPAddress" \
+  --output tsv)
+
+LOCATION=$(az group show --name $RESOURCE_GROUP --query location -o tsv)
+DATA_ENDPOINT_PRIVATE_IP=$(az network nic show \
+  --ids $NETWORK_INTERFACE_ID \
+  --query "ipConfigurations[?privateLinkConnectionProperties.requiredMemberName=='registry_data_$LOCATION'].privateIPAddress" \
+  --output tsv)
+```
+
+### 4. Configure Private DNS Zone for ACR
+
+```bash
+# Create private DNS zone
+az network private-dns zone create \
+  --resource-group $RESOURCE_GROUP \
+  --name "privatelink.azurecr.io"
+
+# Link DNS zone to VNet
+az network private-dns link vnet create \
+  --resource-group $RESOURCE_GROUP \
+  --zone-name "privatelink.azurecr.io" \
+  --name acr-dns-link \
+  --virtual-network $VNET_NAME \
+  --registration-enabled false
+
+# Add A record for registry endpoint
+az network private-dns record-set a create \
+  --name $REGISTRY_NAME \
+  --zone-name "privatelink.azurecr.io" \
+  --resource-group $RESOURCE_GROUP
+
+az network private-dns record-set a add-record \
+  --record-set-name $REGISTRY_NAME \
+  --zone-name "privatelink.azurecr.io" \
+  --resource-group $RESOURCE_GROUP \
+  --ipv4-address $REGISTRY_PRIVATE_IP
+
+# Add A record for data endpoint
+az network private-dns record-set a create \
+  --name $REGISTRY_NAME.$LOCATION.data \
+  --zone-name "privatelink.azurecr.io" \
+  --resource-group $RESOURCE_GROUP
+
+az network private-dns record-set a add-record \
+  --record-set-name $REGISTRY_NAME.$LOCATION.data \
+  --zone-name "privatelink.azurecr.io" \
+  --resource-group $RESOURCE_GROUP \
+  --ipv4-address $DATA_ENDPOINT_PRIVATE_IP
+```
+
+### 5. Create Managed Identities for AKS Cluster
+
+```bash
+# Create control plane identity
+CLUSTER_IDENTITY_NAME="id-aks-block-cluster"
+az identity create \
+  --name $CLUSTER_IDENTITY_NAME \
+  --resource-group $RESOURCE_GROUP
+
+CLUSTER_IDENTITY_RESOURCE_ID=$(az identity show \
+  --name $CLUSTER_IDENTITY_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --query 'id' -o tsv)
+
+# Create kubelet identity
+KUBELET_IDENTITY_NAME="id-aks-block-kubelet"
+az identity create \
+  --name $KUBELET_IDENTITY_NAME \
+  --resource-group $RESOURCE_GROUP
+
+KUBELET_IDENTITY_RESOURCE_ID=$(az identity show \
+  --name $KUBELET_IDENTITY_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --query 'id' -o tsv)
+
+KUBELET_IDENTITY_PRINCIPAL_ID=$(az identity show \
+  --name $KUBELET_IDENTITY_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --query 'principalId' -o tsv)
+
+# Grant AcrPull permission to kubelet identity
+az role assignment create \
+  --role AcrPull \
+  --scope $REGISTRY_ID \
+  --assignee-object-id $KUBELET_IDENTITY_PRINCIPAL_ID \
+  --assignee-principal-type ServicePrincipal
+```
+
+### 6. Create AKS Cluster with Outbound Type Block
 
 ```bash
 az aks create \
   --resource-group $RESOURCE_GROUP \
   --name aks-block-cluster \
+  --kubernetes-version 1.30 \
   --vnet-subnet-id $SUBNET_ID \
+  --assign-identity $CLUSTER_IDENTITY_RESOURCE_ID \
+  --assign-kubelet-identity $KUBELET_IDENTITY_RESOURCE_ID \
+  --bootstrap-artifact-source Cache \
+  --bootstrap-container-registry-resource-id $REGISTRY_ID \
   --network-plugin azure \
   --network-plugin-mode overlay \
   --outbound-type block \
@@ -49,49 +187,22 @@ az aks create \
 ```
 
 This creates an AKS cluster with:
-- Default node count (3)
+- Kubernetes version 1.30 or higher (required for network isolated clusters)
 - VM size: Standard_DS4_v2
-- System-assigned managed identity
-- Default Kubernetes version
+- Custom managed identities (control plane and kubelet)
 - Azure CNI Overlay networking
 - **Blocked outbound internet connectivity**
+- Bootstrap artifact source set to Cache (uses private ACR)
 - Automatically generated SSH keys
 
-### 3. Configure Private Endpoints (Required)
+### 7. Configure Additional Private Endpoints (Optional)
 
-Since outbound type is "block", you must configure private endpoints for all required Azure services:
-
-```bash
-# Example: Create private endpoint for Azure Container Registry
-az network private-endpoint create \
-  --name pe-acr \
-  --resource-group $RESOURCE_GROUP \
-  --vnet-name <vnet-name> \
-  --subnet <subnet-name> \
-  --private-connection-resource-id <acr-resource-id> \
-  --group-id registry \
-  --connection-name acr-connection
-
-# Configure private DNS zone
-az network private-dns zone create \
-  --resource-group $RESOURCE_GROUP \
-  --name privatelink.azurecr.io
-
-az network private-dns link vnet create \
-  --resource-group $RESOURCE_GROUP \
-  --zone-name privatelink.azurecr.io \
-  --name acr-dns-link \
-  --virtual-network <vnet-name> \
-  --registration-enabled false
-```
-
-Required private endpoints typically include:
-- Azure Container Registry (for pulling images)
+You may also need private endpoints for:
 - Azure Key Vault (for secrets)
 - Azure Storage (if using Azure Files/Disks)
 - Any application-specific Azure services
 
-### 4. Get Cluster Credentials
+### 6. Get Cluster Credentials
 
 From your local machine (basic infrastructure):
 ```bash
@@ -118,7 +229,7 @@ az aks get-credentials \
   --name aks-block-cluster
 ```
 
-### 5. Verify Cluster
+### 9. Verify Cluster
 
 ```bash
 kubectl get nodes

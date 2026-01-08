@@ -74,8 +74,3 @@ az aks delete \
   --yes --no-wait
 ```
 
-### Delete Everything Including Infrastructure
-
-```bash
-az group delete --name $RESOURCE_GROUP --yes --no-wait
-```
