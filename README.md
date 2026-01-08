@@ -10,6 +10,7 @@ Before deploying AKS clusters, you need to set up the underlying network infrast
 A simple network setup with a virtual network and subnet for AKS nodes. Uses Azure's default routing for internet egress.
 
 - **Location**: [infra/basic/](infra/basic/)
+- **Use Case**: Development, testing, simple workloads
 - **Components**: Resource Group, VNet, AKS Subnet
 - **Documentation**: [Basic Infrastructure README](infra/basic/README.md)
 
@@ -17,6 +18,7 @@ A simple network setup with a virtual network and subnet for AKS nodes. Uses Azu
 A secure network setup with Azure Firewall for controlled egress traffic and a jump server for secure access.
 
 - **Location**: [infra/egress-lockdown/](infra/egress-lockdown/)
+- **Use Case**: Production, security-sensitive workloads, compliance requirements
 - **Components**: Resource Group, VNet, AKS Subnet, Azure Firewall, Route Table, Jump Server
 - **Documentation**: [Egress Lockdown README](infra/egress-lockdown/README.md)
 
@@ -24,7 +26,8 @@ A secure network setup with Azure Firewall for controlled egress traffic and a j
 
 | Example | Description | Infrastructure | Documentation |
 |---------|-------------|----------------|---------------|
-| Basic AKS Cluster | Deploy an AKS cluster with Azure CNI networking using Azure CLI with default options | Basic or Egress Lockdown | [Guide](/default-aks-cluster/README.md) |
+| Basic Infrastructure | Deploy AKS cluster with default routing | Basic | [Guide](outbound-type/basic-infrastructure.md) |
+| Egress Lockdown | Deploy AKS cluster with user-defined routing through Azure Firewall | Egress Lockdown | [Guide](outbound-type/egress-lockdown-infrastructure.md) |
 
 ## Prerequisites
 
@@ -47,17 +50,19 @@ A secure network setup with Azure Firewall for controlled egress traffic and a j
 ```
 aks-networking/
 ├── README.md                           # This file
-├── infra/
+├── infra/                              # Infrastructure deployments
+│   ├── README.md                       # Infrastructure overview
 │   ├── basic/                          # Basic infrastructure
 │   │   ├── main.bicep
 │   │   ├── main.bicepparam
 │   │   └── README.md
-│   ├── egress-lockdown/                # Egress lockdown infrastructure
-│   │   ├── main.bicep
-│   │   ├── main.bicepparam
-│   │   └── README.md
-│   └── default-aks-cluster/            # Basic AKS cluster deployment
+│   └── egress-lockdown/                # Egress lockdown infrastructure
+│       ├── main.bicep
+│       ├── main.bicepparam
 │       └── README.md
+└── outbound-type/                      # AKS deployment guides
+    ├── basic-infrastructure.md         # Deploy on basic infrastructure
+    └── egress-lockdown-infrastructure.md # Deploy on egress lockdown
 ```
 
 ## Contributing
