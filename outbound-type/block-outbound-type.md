@@ -8,18 +8,6 @@ This guide shows how to create an AKS cluster with outbound type set to "block",
 - Appropriate Azure subscription permissions
 - Infrastructure already deployed (basic or egress lockdown) - See [Infrastructure Setup](../README.md#infrastructure-setup-options)
 
-## Use Cases
-
-Use outbound type "block" when:
-- You want to explicitly prevent any outbound internet access
-- Regulatory or compliance requirements mandate blocking internet egress
-- Testing scenarios where you need to ensure no external calls occur
-- Transitioning from open connectivity to a fully private architecture
-
-## Important Note
-
-⚠️ **As of Kubernetes 1.29+**, the "block" outbound type is being deprecated in favor of "none". The functionality is similar, but "none" is the preferred approach going forward. Consider using [outbound type none](none-outbound-type.md) for new deployments.
-
 ## Deployment Steps
 
 ### 1. Get Infrastructure Outputs
