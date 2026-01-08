@@ -179,7 +179,6 @@ az role assignment create \
 az aks create \
   --resource-group $RESOURCE_GROUP \
   --name aks-none-cluster \
-  --kubernetes-version 1.30 \
   --vnet-subnet-id $SUBNET_ID \
   --assign-identity $CLUSTER_IDENTITY_RESOURCE_ID \
   --assign-kubelet-identity $KUBELET_IDENTITY_RESOURCE_ID \
@@ -195,7 +194,7 @@ az aks create \
 ```
 
 This creates an AKS cluster with:
-- Kubernetes version 1.30 or higher (required for network isolated clusters)
+- Default Kubernetes version
 - VM size: Standard_DS4_v2
 - Custom managed identities (control plane and kubelet)
 - Azure CNI Overlay networking
