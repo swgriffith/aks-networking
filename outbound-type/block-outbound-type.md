@@ -165,7 +165,36 @@ az role assignment create \
   --assignee-principal-type ServicePrincipal
 ```
 
-### 6. Create AKS Cluster with Outbound Type Block
+### 6. Create API Server Subnet
+
+```bash
+# Create subnet for API server VNet integration
+az network vnet subnet create \
+  --name apiserver-subnet \
+  --vnet-name $VNET_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --address-prefixes 10.0.2.0/28
+
+APISERVER_SUBNET_ID=$(az network vnet subnet show \
+  --resource-group $RESOURCE_GROUP \
+  --vnet-name $VNET_NAME \
+  --name apiserver-subnet \
+  --query id -o tsv)
+
+# Grant Network Contributor role to cluster identity on API server subnet
+CLUSTER_IDENTITY_PRINCIPAL_ID=$(az identity show \
+  --name $CLUSTER_IDENTITY_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --query 'principalId' -o tsv)
+
+az role assignment create \
+  --scope $APISERVER_SUBNET_ID \
+  --role "Network Contributor" \
+  --assignee-object-id $CLUSTER_IDENTITY_PRINCIPAL_ID \
+  --assignee-principal-type ServicePrincipal
+```
+
+### 7. Create AKS Cluster with Outbound Type Block
 
 ```bash
 az aks create \
@@ -179,6 +208,9 @@ az aks create \
   --network-plugin azure \
   --network-plugin-mode overlay \
   --outbound-type block \
+  --enable-private-cluster \
+  --enable-apiserver-vnet-integration \
+  --apiserver-subnet-id $APISERVER_SUBNET_ID \
   --service-cidr 172.16.0.0/16 \
   --dns-service-ip 172.16.0.10 \
   --node-vm-size Standard_DS4_v2 \
@@ -190,18 +222,19 @@ This creates an AKS cluster with:
 - VM size: Standard_DS4_v2
 - Custom managed identities (control plane and kubelet)
 - Azure CNI Overlay networking
+- **Private cluster with API server VNet integration** (required for block outbound type)
 - **Blocked outbound internet connectivity**
 - Bootstrap artifact source set to Cache (uses private ACR)
 - Automatically generated SSH keys
 
-### 7. Configure Additional Private Endpoints (Optional)
+### 8. Configure Additional Private Endpoints (Optional)
 
 You may also need private endpoints for:
 - Azure Key Vault (for secrets)
 - Azure Storage (if using Azure Files/Disks)
 - Any application-specific Azure services
 
-### 8. Get Cluster Credentials
+### 9. Get Cluster Credentials
 
 ```bash
 # SSH to jump server first
@@ -220,7 +253,7 @@ az aks get-credentials \
   --name aks-block-cluster
 ```
 
-### 9. Verify Cluster
+### 10. Verify Cluster
 
 ```bash
 kubectl get nodes
