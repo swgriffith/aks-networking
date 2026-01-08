@@ -173,7 +173,7 @@ az network vnet subnet create \
   --name apiserver-subnet \
   --vnet-name $VNET_NAME \
   --resource-group $RESOURCE_GROUP \
-  --address-prefixes 10.0.2.0/28
+  --address-prefixes 10.0.3.0/28
 
 APISERVER_SUBNET_ID=$(az network vnet subnet show \
   --resource-group $RESOURCE_GROUP \
